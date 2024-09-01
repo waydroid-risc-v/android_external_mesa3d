@@ -90,6 +90,7 @@ endif
 ifneq ($(MESON_GEN_LLVM_STUB),)
 LLVM_VERSION_MAJOR = $(shell cat external/llvm-project/llvm/CMakeLists.txt | grep -o "LLVM_VERSION_MAJOR\s*\w*" | /bin/grep -o "[[:digit:]]*" | head -1)
 MESON_LLVM_VERSION := $(LLVM_VERSION_MAJOR).0.0
+LOCAL_HEADER_LIBRARIES += llvm$(LLVM_VERSION_MAJOR)-headers
 LOCAL_SHARED_LIBRARIES += libLLVM$(LLVM_VERSION_MAJOR)
 endif
 

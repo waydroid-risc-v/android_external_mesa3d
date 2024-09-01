@@ -30,6 +30,7 @@ endef
 
 LOCAL_MODULE_CLASS := SHARED_LIBRARIES
 LOCAL_MODULE := meson.dummy.$(LOCAL_MULTILIB)
+LOCAL_SHARED_LIBRARIES := libc libdl libdrm libm liblog libcutils libz libc++ libnativewindow libsync libhardware
 
 m_dummy := $(local-generated-sources-dir)/dummy.c
 $(m_dummy):
@@ -110,6 +111,10 @@ endef
 # to use definitions from build/make/core/definitions.mk
 $(MESON_GEN_FILES_TARGET): PRIVATE_GLOBAL_C_INCLUDES := $(my_target_global_c_includes)
 $(MESON_GEN_FILES_TARGET): PRIVATE_GLOBAL_C_SYSTEM_INCLUDES := $(my_target_global_c_system_includes)
+
+$(MESON_GEN_FILES_TARGET): PRIVATE_TARGET_GLOBAL_CFLAGS := $(my_target_global_cflags)
+$(MESON_GEN_FILES_TARGET): PRIVATE_TARGET_GLOBAL_CONLYFLAGS := $(my_target_global_conlyflags)
+$(MESON_GEN_FILES_TARGET): PRIVATE_TARGET_GLOBAL_CPPFLAGS := $(my_target_global_cppflags)
 
 $(MESON_GEN_FILES_TARGET): PRIVATE_2ND_ARCH_VAR_PREFIX := $(M_TARGET_PREFIX)
 $(MESON_GEN_FILES_TARGET): PRIVATE_CC := $(my_cc)
@@ -209,10 +214,48 @@ define filter-c-flags
     $(patsubst  -W%,, $1))
 endef
 
+define m-c-includes-common
+$(addprefix -I , $(PRIVATE_C_INCLUDES)) \
+$(if $(PRIVATE_NO_DEFAULT_COMPILER_FLAGS),,\
+    $(addprefix -I ,\
+        $(filter-out $(PRIVATE_C_INCLUDES), \
+            $(PRIVATE_GLOBAL_C_INCLUDES))) \
+    $(addprefix -isystem ,\
+        $(filter-out $(PRIVATE_C_INCLUDES), \
+            $(PRIVATE_GLOBAL_C_SYSTEM_INCLUDES))))
+endef
+
+ifeq ($(shell test $(PLATFORM_SDK_VERSION) -ge 30; echo $$?), 0)
+# Android 11+
+define m-c-includes
+$(foreach i,$(PRIVATE_IMPORTED_INCLUDES),$(EXPORTS.$(i)))\
+$(m-c-includes-common)
+endef
+define postprocess-includes
+endef
+else
+# Android 10,9
+$(MESON_GEN_FILES_TARGET): PRIVATE_IMPORT_INCLUDES := $(import_includes)
+define postprocess-includes
+	echo " $$(cat $(PRIVATE_IMPORT_INCLUDES)) " > $(MESON_GEN_DIR)/import_includes && \
+	sed -i  -e ':a;N;$$!ba;s/\n/ /g'                                  \
+		-e 's# \{2,\}# #g'                                        \
+		-e 's# -isystem # -isystem#g'                             \
+		-e 's# -I # -I#g'                                         \
+		-e 's# -I# -I$(AOSP_ABSOLUTE_PATH)/#g'                    \
+		-e 's# -isystem# -isystem$(AOSP_ABSOLUTE_PATH)/#g'        \
+		-e "s# #','#g" $(MESON_GEN_DIR)/import_includes &&        \
+	sed -i "s#<_IMPORT_INCLUDES>#$$(cat $(MESON_GEN_DIR)/import_includes)#g" $(MESON_GEN_DIR)/aosp_cross
+endef
+define m-c-includes
+<_IMPORT_INCLUDES> $(m-c-includes-common)
+endef
+endif
+
 define nospace-includes
   $(subst $(space)-isystem$(space),$(space)-isystem, \
   $(subst $(space)-I$(space),$(space)-I, \
-  $(strip $(c-includes))))
+  $(strip $(m-c-includes))))
 endef
 
 # Ensure include paths are always absolute
@@ -261,6 +304,8 @@ $(MESON_GEN_FILES_TARGET): $(sort $(shell find -L $(MESA3D_TOP) -not -path '*/\.
 
 	#
 	$(foreach pkg, $(MESON_GEN_PKGCONFIGS), $(call create-pkgconfig,$(dir $@),$(word 1, $(subst :, ,$(pkg))),$(word 2, $(subst :, ,$(pkg)))))
+	$(postprocess-includes)
+
 	touch $@
 
 $(MESON_OUT_DIR)/.build.timestamp: MESON_GEN_NINJA:=$(MESON_GEN_NINJA)

@@ -30,7 +30,6 @@ endef
 
 LOCAL_MODULE_CLASS := SHARED_LIBRARIES
 LOCAL_MODULE := meson.dummy.$(LOCAL_MULTILIB)
-LOCAL_SHARED_LIBRARIES := libc libdl libdrm libm liblog libcutils libz libc++ libnativewindow libsync libhardware
 
 m_dummy := $(local-generated-sources-dir)/dummy.c
 $(m_dummy):

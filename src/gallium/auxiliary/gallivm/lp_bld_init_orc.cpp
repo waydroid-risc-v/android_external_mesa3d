@@ -14,9 +14,11 @@
 #include <llvm-c/Support.h>
 
 #include <llvm-c/Analysis.h>
+#if LLVM_VERSION_MAJOR < 17
 #include <llvm-c/Transforms/Scalar.h>
 #if LLVM_VERSION_MAJOR >= 7
 #include <llvm-c/Transforms/Utils.h>
+#endif
 #endif
 #include <llvm-c/BitWriter.h>
 #if GALLIVM_USE_NEW_PASS == 1
@@ -194,7 +196,13 @@ public:
          LLVMValueRef sym,
          void *addr,
          LLVMOrcJITDylibRef jd) {
+#if LLVM_VERSION_MAJOR >= 17
+      using llvm::orc::ExecutorAddr;
+      using llvm::orc::ExecutorSymbolDef;
+      using llvm::JITSymbolFlags;
+#else
       using llvm::JITEvaluatedSymbol;
+#endif
       using llvm::orc::ExecutionSession;
       using llvm::orc::JITDylib;
       using llvm::orc::SymbolMap;
@@ -202,7 +210,11 @@ public:
       auto& es = LPJit::get_instance()->lljit->getExecutionSession();
       auto name = es.intern(llvm::unwrap(sym)->getName());
       SymbolMap map(1);
+#if LLVM_VERSION_MAJOR >= 17
+      map[name] = ExecutorSymbolDef(ExecutorAddr::fromPtr(addr), JITSymbolFlags::Exported);
+#else
       map[name] = JITEvaluatedSymbol::fromPointer(addr);
+#endif
       auto munit = llvm::orc::absoluteSymbols(map);
       llvm::cantFail(JD->define(std::move(munit)));
    }

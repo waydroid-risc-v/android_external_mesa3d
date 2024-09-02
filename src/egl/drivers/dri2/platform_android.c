@@ -1522,13 +1522,8 @@ droid_load_driver(_EGLDisplay *disp, bool swrast)
        * virtio-gpu fallbacks to software rendering when 3D features
        * are unavailable since 6c5ab.
        */
-      if (strcmp(dri2_dpy->driver_name, "vgem") == 0 ||
-          strcmp(dri2_dpy->driver_name, "virtio_gpu") == 0) {
          free(dri2_dpy->driver_name);
          dri2_dpy->driver_name = strdup("kms_swrast");
-      } else {
-         goto error;
-      }
    }
 
    dri2_dpy->loader_extensions = droid_image_loader_extensions;

@@ -278,11 +278,11 @@ llvmpipe_create_context(struct pipe_screen *screen, void *priv,
       goto fail;
 
 #if GALLIVM_USE_ORCJIT == 1
-#if LLVM_VERSION_MAJOR >= 15
+#if LLVM_VERSION_MAJOR == 15
    LLVMContextSetOpaquePointers(LLVMOrcThreadSafeContextGetContext(llvmpipe->context), false);
 #endif
 #else
-#if LLVM_VERSION_MAJOR >= 15
+#if LLVM_VERSION_MAJOR == 15
    LLVMContextSetOpaquePointers(llvmpipe->context, false);
 #endif
 #endif

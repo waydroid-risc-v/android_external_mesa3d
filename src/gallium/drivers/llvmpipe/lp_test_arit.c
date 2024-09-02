@@ -417,7 +417,11 @@ test_unary(unsigned verbose, FILE *fp, const struct unary_test_t *test, unsigned
 {
    char test_name[128];
    snprintf(test_name, sizeof test_name, "%s.v%u", test->name, length);
+#if GALLIVM_USE_ORCJIT == 1
+   LLVMOrcThreadSafeContextRef context;
+#else
    LLVMContextRef context;
+#endif
    struct gallivm_state *gallivm;
    LLVMValueRef test_func;
    unary_func_t test_func_jit;
@@ -433,9 +437,16 @@ test_unary(unsigned verbose, FILE *fp, const struct unary_test_t *test, unsigned
       in[i] = 1.0;
    }
 
+#if GALLIVM_USE_ORCJIT == 1
+   context = LLVMOrcCreateNewThreadSafeContext();
+#if LLVM_VERSION_MAJOR >= 15
+   LLVMContextSetOpaquePointers(LLVMOrcThreadSafeContextGetContext(context), false);
+#endif
+#else
    context = LLVMContextCreate();
 #if LLVM_VERSION_MAJOR == 15
    LLVMContextSetOpaquePointers(context, false);
+#endif
 #endif
    gallivm = gallivm_create("test_module", context, NULL);
 
@@ -443,7 +454,11 @@ test_unary(unsigned verbose, FILE *fp, const struct unary_test_t *test, unsigned
 
    gallivm_compile_module(gallivm);
 
+#if GALLIVM_USE_ORCJIT == 1
+   test_func_jit = (unary_func_t) gallivm_jit_function(gallivm, test_name);
+#else
    test_func_jit = (unary_func_t) gallivm_jit_function(gallivm, test_func);
+#endif
 
    gallivm_free_ir(gallivm);
 
@@ -512,7 +527,11 @@ test_unary(unsigned verbose, FILE *fp, const struct unary_test_t *test, unsigned
    }
 
    gallivm_destroy(gallivm);
+#if GALLIVM_USE_ORCJIT == 1
+   LLVMOrcDisposeThreadSafeContext(context);
+#else
    LLVMContextDispose(context);
+#endif
 
    align_free(in);
    align_free(out);

@@ -42,6 +42,11 @@
 #include "pipe/p_context.h"
 #include "util/list.h"
 
+#define GALLIVM_USE_ORCJIT 1
+
+#if GALLIVM_USE_ORCJIT == 1
+#include <llvm-c/Orc.h>
+#endif
 
 struct draw_llvm;
 struct llvm_vertex_shader;
@@ -401,6 +406,9 @@ struct draw_llvm_variant
    LLVMTypeRef vertex_header_ptr_type;
 
    LLVMValueRef function;
+#if GALLIVM_USE_ORCJIT == 1
+   char *function_name;
+#endif
    draw_jit_vert_func jit_func;
 
    struct llvm_vertex_shader *shader;
@@ -434,6 +442,9 @@ struct draw_gs_llvm_variant
    LLVMValueRef io_ptr;
    LLVMValueRef num_prims;
    LLVMValueRef function;
+#if GALLIVM_USE_ORCJIT == 1
+   char *function_name;
+#endif
    draw_gs_jit_func jit_func;
 
    struct llvm_geometry_shader *shader;
@@ -460,6 +471,9 @@ struct draw_tcs_llvm_variant
    /* LLVMValueRef io_ptr; */
    LLVMValueRef num_prims;
    LLVMValueRef function;
+#if GALLIVM_USE_ORCJIT == 1
+   char *function_name;
+#endif
    draw_tcs_jit_func jit_func;
 
    struct llvm_tess_ctrl_shader *shader;
@@ -490,6 +504,9 @@ struct draw_tes_llvm_variant
    LLVMValueRef io_ptr;
    LLVMValueRef num_prims;
    LLVMValueRef function;
+#if GALLIVM_USE_ORCJIT == 1
+   char *function_name;
+#endif
    draw_tes_jit_func jit_func;
 
    struct llvm_tess_eval_shader *shader;
@@ -542,6 +559,9 @@ struct draw_llvm {
    struct draw_context *draw;
 
    LLVMContextRef context;
+#if GALLIVM_USE_ORCJIT == 1
+   LLVMOrcThreadSafeContextRef _ts_context;
+#endif
    bool context_owned;
 
    struct draw_vs_jit_context vs_jit_context;
@@ -587,8 +607,13 @@ llvm_tess_eval_shader(struct draw_tess_eval_shader *tes)
    return (struct llvm_tess_eval_shader *)tes;
 }
 
+#if GALLIVM_USE_ORCJIT == 1
 struct draw_llvm *
-draw_llvm_create(struct draw_context *draw, LLVMContextRef llvm_context);
+draw_llvm_create(struct draw_context *draw, LLVMOrcThreadSafeContextRef context);
+#else
+struct draw_llvm *
+draw_llvm_create(struct draw_context *draw, LLVMContextRef context);
+#endif
 
 void
 draw_llvm_destroy(struct draw_llvm *llvm);

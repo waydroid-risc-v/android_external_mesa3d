@@ -298,6 +298,10 @@ llvmpipe_fs_variant_linear_llvm(struct llvmpipe_context *lp,
    LLVMSetFunctionCallConv(function, LLVMCCallConv);
 
    variant->linear_function = function;
+#if GALLIVM_USE_ORCJIT == 1
+   variant->linear_function_name = MALLOC(strlen(func_name)+1);
+   strcpy(variant->linear_function_name, func_name);
+#endif
 
    /* XXX: need to propagate noalias down into color param now we are
     * passing a pointer-to-pointer?

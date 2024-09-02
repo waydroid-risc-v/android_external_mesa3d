@@ -343,7 +343,7 @@ if draw_with_llvm
     'gallivm/lp_bld_gather.c',
     'gallivm/lp_bld_gather.h',
     'gallivm/lp_bld.h',
-    'gallivm/lp_bld_init.c',
+    'gallivm/lp_bld_init_orc.cpp',
     'gallivm/lp_bld_init.h',
     'gallivm/lp_bld_intr.c',
     'gallivm/lp_bld_intr.h',

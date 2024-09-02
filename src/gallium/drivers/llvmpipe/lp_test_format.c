@@ -79,9 +79,9 @@ static LLVMValueRef
 add_fetch_rgba_test(struct gallivm_state *gallivm, unsigned verbose,
                     const struct util_format_description *desc,
                     struct lp_type type,
-                    unsigned use_cache)
+                    unsigned use_cache,
+		    char *name)
 {
-   char name[256];
    LLVMContextRef context = gallivm->context;
    LLVMModuleRef module = gallivm->module;
    LLVMBuilderRef builder = gallivm->builder;
@@ -96,7 +96,7 @@ add_fetch_rgba_test(struct gallivm_state *gallivm, unsigned verbose,
    LLVMValueRef rgba;
    LLVMValueRef cache = NULL;
 
-   snprintf(name, sizeof name, "fetch_%s_%s", desc->short_name,
+   snprintf(name, 64 * sizeof(char), "fetch_%s_%s", desc->short_name,
             type.floating ? "float" : "unorm8");
 
    args[0] = LLVMPointerType(lp_build_vec_type(gallivm, type), 0);
@@ -139,9 +139,14 @@ test_format_float(unsigned verbose, FILE *fp,
                   const struct util_format_description *desc,
                   unsigned use_cache)
 {
+#if GALLIVM_USE_ORCJIT == 1
+   LLVMOrcThreadSafeContextRef context;
+#else
    LLVMContextRef context;
+#endif
    struct gallivm_state *gallivm;
    LLVMValueRef fetch = NULL;
+   char fetch_name[64];
    fetch_ptr_t fetch_ptr;
    alignas(16) uint8_t packed[UTIL_FORMAT_MAX_PACKED_BYTES];
    alignas(16) float unpacked[4];
@@ -149,18 +154,29 @@ test_format_float(unsigned verbose, FILE *fp,
    bool success = true;
    unsigned i, j, k, l;
 
+#if GALLIVM_USE_ORCJIT == 1
+   context = LLVMOrcCreateNewThreadSafeContext();
+#if LLVM_VERSION_MAJOR >= 15
+   LLVMContextSetOpaquePointers(LLVMOrcThreadSafeContextGetContext(context), false);
+#endif
+#else
    context = LLVMContextCreate();
 #if LLVM_VERSION_MAJOR == 15
    LLVMContextSetOpaquePointers(context, false);
 #endif
+#endif
    gallivm = gallivm_create("test_module_float", context, NULL);
 
    fetch = add_fetch_rgba_test(gallivm, verbose, desc,
-                               lp_float32_vec4_type(), use_cache);
+                               lp_float32_vec4_type(), use_cache, fetch_name);
 
    gallivm_compile_module(gallivm);
 
+#if GALLIVM_USE_ORCJIT == 1
+   fetch_ptr = (fetch_ptr_t) gallivm_jit_function(gallivm, fetch_name);
+#else
    fetch_ptr = (fetch_ptr_t) gallivm_jit_function(gallivm, fetch);
+#endif
 
    gallivm_free_ir(gallivm);
 
@@ -228,7 +244,11 @@ test_format_float(unsigned verbose, FILE *fp,
    }
 
    gallivm_destroy(gallivm);
+#if GALLIVM_USE_ORCJIT == 1
+   LLVMOrcDisposeThreadSafeContext(context);
+#else
    LLVMContextDispose(context);
+#endif
 
    if (fp)
       write_tsv_row(fp, desc, success);
@@ -243,9 +263,14 @@ test_format_unorm8(unsigned verbose, FILE *fp,
                    const struct util_format_description *desc,
                    unsigned use_cache)
 {
+#if GALLIVM_USE_ORCJIT == 1
+   LLVMOrcThreadSafeContextRef context;
+#else
    LLVMContextRef context;
+#endif
    struct gallivm_state *gallivm;
    LLVMValueRef fetch = NULL;
+   char fetch_name[64];
    fetch_ptr_t fetch_ptr;
    alignas(16) uint8_t packed[UTIL_FORMAT_MAX_PACKED_BYTES];
    uint8_t unpacked[4];
@@ -253,18 +278,29 @@ test_format_unorm8(unsigned verbose, FILE *fp,
    bool success = true;
    unsigned i, j, k, l;
 
+#if GALLIVM_USE_ORCJIT == 1
+   context = LLVMOrcCreateNewThreadSafeContext();
+#if LLVM_VERSION_MAJOR >= 15
+   LLVMContextSetOpaquePointers(LLVMOrcThreadSafeContextGetContext(context), false);
+#endif
+#else
    context = LLVMContextCreate();
 #if LLVM_VERSION_MAJOR == 15
    LLVMContextSetOpaquePointers(context, false);
 #endif
+#endif
    gallivm = gallivm_create("test_module_unorm8", context, NULL);
 
    fetch = add_fetch_rgba_test(gallivm, verbose, desc,
-                               lp_unorm8_vec4_type(), use_cache);
+                               lp_unorm8_vec4_type(), use_cache, fetch_name);
 
    gallivm_compile_module(gallivm);
 
+#if GALLIVM_USE_ORCJIT == 1
+   fetch_ptr = (fetch_ptr_t) gallivm_jit_function(gallivm, fetch_name);
+#else
    fetch_ptr = (fetch_ptr_t) gallivm_jit_function(gallivm, fetch);
+#endif
 
    gallivm_free_ir(gallivm);
 
@@ -331,7 +367,11 @@ test_format_unorm8(unsigned verbose, FILE *fp,
    }
 
    gallivm_destroy(gallivm);
+#if GALLIVM_USE_ORCJIT == 1
+   LLVMOrcDisposeThreadSafeContext(context);
+#else
    LLVMContextDispose(context);
+#endif
 
    if (fp)
       write_tsv_row(fp, desc, success);

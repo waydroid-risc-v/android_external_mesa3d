@@ -200,11 +200,19 @@ llvmpipe_sampler_matrix_destroy(struct llvmpipe_context *ctx)
    util_dynarray_fini(&ctx->sampler_matrix.gallivms);
 }
 
+#if GALLIVM_USE_ORCJIT == 1
+static void *
+compile_function(struct llvmpipe_context *ctx, struct gallivm_state *gallivm, LLVMValueRef function_ref, const char *function,
+                 uint8_t cache_key[SHA1_DIGEST_LENGTH])
+{
+   gallivm_verify_function(gallivm, function_ref);
+#else
 static void *
 compile_function(struct llvmpipe_context *ctx, struct gallivm_state *gallivm, LLVMValueRef function,
                  uint8_t cache_key[SHA1_DIGEST_LENGTH])
 {
    gallivm_verify_function(gallivm, function);
+#endif
    gallivm_compile_module(gallivm);
 
    void *function_ptr = func_to_pointer(gallivm_jit_function(gallivm, function));
@@ -333,7 +341,11 @@ compile_image_function(struct llvmpipe_context *ctx, struct lp_static_texture_st
 
    free(image_soa);
 
+#if GALLIVM_USE_ORCJIT == 1
+   return compile_function(ctx, gallivm, function, "image", cache_key);
+#else
    return compile_function(ctx, gallivm, function, cache_key);
+#endif
 }
 
 static void *
@@ -471,7 +483,11 @@ compile_sample_function(struct llvmpipe_context *ctx, struct lp_static_texture_s
 
    free(sampler_soa);
 
+#if GALLIVM_USE_ORCJIT == 1
+   return compile_function(ctx, gallivm, function, "sample", cache_key);
+#else
    return compile_function(ctx, gallivm, function, cache_key);
+#endif
 }
 
 static void *
@@ -551,7 +567,11 @@ compile_size_function(struct llvmpipe_context *ctx, struct lp_static_texture_sta
 
    free(sampler_soa);
 
+#if GALLIVM_USE_ORCJIT == 1
+   return compile_function(ctx, gallivm, function, "size", cache_key);
+#else
    return compile_function(ctx, gallivm, function, cache_key);
+#endif
 }
 
 static void

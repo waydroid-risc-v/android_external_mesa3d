@@ -942,7 +942,11 @@ static void
 lp_disk_cache_create(struct llvmpipe_screen *screen)
 {
    struct mesa_sha1 ctx;
+#if GALLIVM_USE_ORCJIT == 1
+   unsigned gallivm_perf = 0;
+#else
    unsigned gallivm_perf = gallivm_get_perf_flags();
+#endif
    unsigned char sha1[20];
    char cache_id[20 * 2 + 1];
    _mesa_sha1_init(&ctx);

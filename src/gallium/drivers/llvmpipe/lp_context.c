@@ -49,6 +49,10 @@
 #include "lp_screen.h"
 #include "lp_fence.h"
 
+#if ! (GALLIVM_USE_ORCJIT == 1)
+#define USE_GLOBAL_LLVM_CONTEXT
+#endif
+
 static void
 llvmpipe_destroy(struct pipe_context *pipe)
 {
@@ -108,7 +112,11 @@ llvmpipe_destroy(struct pipe_context *pipe)
    llvmpipe_sampler_matrix_destroy(llvmpipe);
 
 #ifndef USE_GLOBAL_LLVM_CONTEXT
+#if GALLIVM_USE_ORCJIT == 1
+   LLVMOrcDisposeThreadSafeContext(llvmpipe->context);
+#else
    LLVMContextDispose(llvmpipe->context);
+#endif
 #endif
    llvmpipe->context = NULL;
 
@@ -259,14 +267,24 @@ llvmpipe_create_context(struct pipe_screen *screen, void *priv,
 #ifdef USE_GLOBAL_LLVM_CONTEXT
    llvmpipe->context = LLVMGetGlobalContext();
 #else
+#if GALLIVM_USE_ORCJIT == 1
+   llvmpipe->context = LLVMOrcCreateNewThreadSafeContext();
+#else
    llvmpipe->context = LLVMContextCreate();
+#endif
 #endif
 
    if (!llvmpipe->context)
       goto fail;
 
-#if LLVM_VERSION_MAJOR == 15
+#if GALLIVM_USE_ORCJIT == 1
+#if LLVM_VERSION_MAJOR >= 15
+   LLVMContextSetOpaquePointers(LLVMOrcThreadSafeContextGetContext(llvmpipe->context), false);
+#endif
+#else
+#if LLVM_VERSION_MAJOR >= 15
    LLVMContextSetOpaquePointers(llvmpipe->context, false);
+#endif
 #endif
 
    /*

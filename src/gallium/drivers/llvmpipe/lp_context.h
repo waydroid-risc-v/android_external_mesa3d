@@ -190,7 +190,11 @@ struct llvmpipe_context {
    unsigned render_cond_offset;
 
    /** The LLVMContext to use for LLVM related work */
+#if GALLIVM_USE_ORCJIT == 1
+   LLVMOrcThreadSafeContextRef context;
+#else
    LLVMContextRef context;
+#endif
 
    int max_global_buffers;
    struct pipe_resource **global_buffers;

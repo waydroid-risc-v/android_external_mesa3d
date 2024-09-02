@@ -131,16 +131,24 @@ dump_blend_type(FILE *fp,
 }
 
 
+#if GALLIVM_USE_ORCJIT == 1
+static const char *
+add_blend_test(struct gallivm_state *gallivm,
+               const struct pipe_blend_state *blend,
+               struct lp_type type)
+#else
 static LLVMValueRef
 add_blend_test(struct gallivm_state *gallivm,
                const struct pipe_blend_state *blend,
                struct lp_type type)
+#endif
 {
    LLVMModuleRef module = gallivm->module;
    LLVMContextRef context = gallivm->context;
    LLVMTypeRef vec_type;
    LLVMTypeRef args[5];
    LLVMValueRef func;
+   const char *func_name = "test";
    LLVMValueRef src_ptr;
    LLVMValueRef src1_ptr;
    LLVMValueRef dst_ptr;
@@ -160,7 +168,7 @@ add_blend_test(struct gallivm_state *gallivm,
    vec_type = lp_build_vec_type(gallivm, type);
 
    args[4] = args[3] = args[2] = args[1] = args[0] = LLVMPointerType(vec_type, 0);
-   func = LLVMAddFunction(module, "test", LLVMFunctionType(LLVMVoidTypeInContext(context), args, 5, 0));
+   func = LLVMAddFunction(module, func_name, LLVMFunctionType(LLVMVoidTypeInContext(context), args, 5, 0));
    LLVMSetFunctionCallConv(func, LLVMCCallConv);
    src_ptr = LLVMGetParam(func, 0);
    src1_ptr = LLVMGetParam(func, 1);
@@ -188,7 +196,11 @@ add_blend_test(struct gallivm_state *gallivm,
 
    gallivm_verify_function(gallivm, func);
 
+#if GALLIVM_USE_ORCJIT == 1
+   return func_name;
+#else
    return func;
+#endif
 }
 
 
@@ -437,9 +449,17 @@ test_one(unsigned verbose,
          const struct pipe_blend_state *blend,
          struct lp_type type)
 {
+#if GALLIVM_USE_ORCJIT == 1
+   LLVMOrcThreadSafeContextRef context;
+#else
    LLVMContextRef context;
+#endif
    struct gallivm_state *gallivm;
+#if GALLIVM_USE_ORCJIT == 1
+   const char *func;
+#else
    LLVMValueRef func = NULL;
+#endif
    blend_test_ptr_t blend_test_ptr;
    bool success;
    const unsigned n = LP_TEST_NUM_SAMPLES;
@@ -451,9 +471,16 @@ test_one(unsigned verbose,
    if (verbose >= 1)
       dump_blend_type(stdout, blend, type);
 
+#if GALLIVM_USE_ORCJIT == 1
+   context = LLVMOrcCreateNewThreadSafeContext();
+#if LLVM_VERSION_MAJOR >= 15
+   LLVMContextSetOpaquePointers(LLVMOrcThreadSafeContextGetContext(context), false);
+#endif
+#else
    context = LLVMContextCreate();
 #if LLVM_VERSION_MAJOR == 15
    LLVMContextSetOpaquePointers(context, false);
+#endif
 #endif
    gallivm = gallivm_create("test_module", context, NULL);
 
@@ -584,7 +611,11 @@ test_one(unsigned verbose,
       write_tsv_row(fp, blend, type, cycles_avg, success);
 
    gallivm_destroy(gallivm);
+#if GALLIVM_USE_ORCJIT == 1
+   LLVMOrcDisposeThreadSafeContext(context);
+#else
    LLVMContextDispose(context);
+#endif
 
    return success;
 }

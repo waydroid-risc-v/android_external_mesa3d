@@ -66,6 +66,9 @@ struct lp_setup_variant {
     * assembly.
     */
    LLVMValueRef function;
+#if GALLIVM_USE_ORCJIT == 1
+   char *function_name;
+#endif
 
    /* The actual generated setup function:
     */

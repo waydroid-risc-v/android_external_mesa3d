@@ -687,6 +687,10 @@ generate_setup_variant(struct lp_setup_variant_key *key,
                        arg_types, ARRAY_SIZE(arg_types), 0);
 
    variant->function = LLVMAddFunction(gallivm->module, func_name, func_type);
+#if GALLIVM_USE_ORCJIT == 1
+   variant->function_name = MALLOC(strlen(func_name)+1);
+   strcpy(variant->function_name, func_name);
+#endif
    if (!variant->function)
       goto fail;
 
@@ -730,8 +734,13 @@ generate_setup_variant(struct lp_setup_variant_key *key,
 
    gallivm_compile_module(gallivm);
 
+#if GALLIVM_USE_ORCJIT == 1
+   variant->jit_function = (lp_jit_setup_triangle)
+      gallivm_jit_function(gallivm, variant->function_name);
+#else
    variant->jit_function = (lp_jit_setup_triangle)
       gallivm_jit_function(gallivm, variant->function);
+#endif
    if (!variant->jit_function)
       goto fail;
 

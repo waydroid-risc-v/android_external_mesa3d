@@ -57,17 +57,12 @@ write_tsv_header(FILE *fp)
 typedef void (*test_printf_t)(int i);
 
 
-#if GALLIVM_USE_ORCJIT == 1
-static const char *
-add_printf_test(struct gallivm_state *gallivm)
-#else
 static LLVMValueRef
-add_printf_test(struct gallivm_state *gallivm)
-#endif
+add_printf_test(struct gallivm_state *gallivm, int n, char *func_name)
 {
    LLVMModuleRef module = gallivm->module;
-   const char *func_name = "test_printf";
    LLVMTypeRef args[1] = { LLVMIntTypeInContext(gallivm->context, 32) };
+   snprintf(func_name, 64 * sizeof(char), "test_lookup_multiple_%d", n);
    LLVMValueRef func = LLVMAddFunction(module, func_name, LLVMFunctionType(LLVMVoidTypeInContext(gallivm->context), args, 1, 0));
    LLVMBuilderRef builder = gallivm->builder;
    LLVMBasicBlockRef block = LLVMAppendBasicBlockInContext(gallivm->context, func, "entry");
@@ -75,7 +70,8 @@ add_printf_test(struct gallivm_state *gallivm)
    LLVMSetFunctionCallConv(func, LLVMCCallConv);
 
    LLVMPositionBuilderAtEnd(builder, block);
-   lp_build_printf(gallivm, "hello, world\n");
+   lp_build_printf(gallivm, "hello, world from ");
+   lp_build_printf(gallivm, func_name);
    lp_build_printf(gallivm, "print 5 6: %d %d\n", LLVMConstInt(LLVMInt32TypeInContext(gallivm->context), 5, 0),
 				LLVMConstInt(LLVMInt32TypeInContext(gallivm->context), 6, 0));
 
@@ -86,55 +82,57 @@ add_printf_test(struct gallivm_state *gallivm)
 
    gallivm_verify_function(gallivm, func);
 
-#if GALLIVM_USE_ORCJIT == 1
-   return func_name;
-#else
    return func;
-#endif
 }
 
 
-UTIL_ALIGN_STACK
 static bool
-test_printf(unsigned verbose, FILE *fp,
+test_lookup_multiple(unsigned verbose, FILE *fp,
             const struct printf_test_case *testcase)
 {
-#if GALLIVM_USE_ORCJIT == 1
-   LLVMOrcThreadSafeContextRef context;
-#else
-   LLVMContextRef context;
-#endif
    struct gallivm_state *gallivm;
-#if GALLIVM_USE_ORCJIT == 1
-   const char *test;
-#else
-   LLVMValueRef test;
-#endif
-   test_printf_t test_printf_func;
+   const int N = 10;
+   LLVMValueRef func[N];
+   char func_name[N][64];
+   test_printf_t test_lookup_multiple_func[N];
    bool success = true;
+   int i;
 
 #if GALLIVM_USE_ORCJIT == 1
-   context = LLVMOrcCreateNewThreadSafeContext();
+   LLVMOrcThreadSafeContextRef context = LLVMOrcCreateNewThreadSafeContext();
 #if LLVM_VERSION_MAJOR >= 15
    LLVMContextSetOpaquePointers(LLVMOrcThreadSafeContextGetContext(context), false);
 #endif
 #else
-   context = LLVMContextCreate();
-#if LLVM_VERSION_MAJOR == 15
+   LLVMContextRef context = LLVMContextCreate();
+#if LLVM_VERSION_MAJOR >= 15
    LLVMContextSetOpaquePointers(context, false);
 #endif
 #endif
    gallivm = gallivm_create("test_module", context, NULL);
 
-   test = add_printf_test(gallivm);
+   for(i = 0; i < N; i++){
+      func[i] = add_printf_test(gallivm, i, func_name[i]);
+   }
 
    gallivm_compile_module(gallivm);
 
-   test_printf_func = (test_printf_t) gallivm_jit_function(gallivm, test);
+#if GALLIVM_USE_ORCJIT == 1
+   for(i = 0; i < N; i++){
+      test_lookup_multiple_func[i] = (test_printf_t) gallivm_jit_function(gallivm, func_name[i]);
+   }
+   (void)func;
+#else
+   for(i = 0; i < N; i++){
+      test_lookup_multiple_func[i] = (test_printf_t) gallivm_jit_function(gallivm, func[i]);
+   }
+#endif
 
    gallivm_free_ir(gallivm);
 
-   test_printf_func(0);
+   for(i = 0; i < N; i++){
+      test_lookup_multiple_func[i](0);
+   }
 
    gallivm_destroy(gallivm);
 #if GALLIVM_USE_ORCJIT == 1
@@ -152,7 +150,7 @@ test_all(unsigned verbose, FILE *fp)
 {
    bool success = true;
 
-   test_printf(verbose, fp, NULL);
+   test_lookup_multiple(verbose, fp, NULL);
 
    return success;
 }

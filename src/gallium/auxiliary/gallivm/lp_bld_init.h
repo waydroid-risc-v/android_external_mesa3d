@@ -29,11 +29,16 @@
 #ifndef LP_BLD_INIT_H
 #define LP_BLD_INIT_H
 
+#define GALLIVM_USE_ORCJIT 1
 
 #include "util/compiler.h"
 #include "util/u_pointer.h" // for func_pointer
 #include "lp_bld.h"
+#if GALLIVM_USE_ORCJIT == 1
+#include <llvm-c/Orc.h>
+#else
 #include <llvm-c/ExecutionEngine.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,18 +49,27 @@ struct gallivm_state
 {
    char *module_name;
    LLVMModuleRef module;
-   LLVMExecutionEngineRef engine;
    LLVMTargetDataRef target;
+#if GALLIVM_USE_ORCJIT == 1
+   /* own this->module */
+   LLVMOrcThreadSafeContextRef _ts_context;
+   /* each module is in its own jitdylib */
+   LLVMOrcJITDylibRef _per_module_jd;
+#else
+   LLVMExecutionEngineRef engine;
 #if GALLIVM_USE_NEW_PASS == 0
    LLVMPassManagerRef passmgr;
 #if GALLIVM_HAVE_CORO == 1
    LLVMPassManagerRef cgpassmgr;
 #endif
 #endif
-   LLVMContextRef context;
-   LLVMBuilderRef builder;
    LLVMMCJITMemoryManagerRef memorymgr;
    struct lp_generated_code *code;
+#endif
+
+   LLVMContextRef context;
+   LLVMBuilderRef builder;
+
    struct lp_cached_code *cache;
    unsigned compiled;
    LLVMValueRef coro_malloc_hook;
@@ -77,10 +91,15 @@ lp_build_init_native_width(void);
 bool
 lp_build_init(void);
 
-
+#if GALLIVM_USE_ORCJIT == 1
+struct gallivm_state *
+gallivm_create(const char *name, LLVMOrcThreadSafeContextRef context,
+               struct lp_cached_code *cache);
+#else
 struct gallivm_state *
 gallivm_create(const char *name, LLVMContextRef context,
                struct lp_cached_code *cache);
+#endif
 
 void
 gallivm_destroy(struct gallivm_state *gallivm);
@@ -93,11 +112,25 @@ gallivm_verify_function(struct gallivm_state *gallivm,
                         LLVMValueRef func);
 
 void
+gallivm_add_global_mapping(struct gallivm_state *gallivm, LLVMValueRef sym, void* addr);
+
+/**
+ * for ORCJIT, after this function gets called, all access and modification to
+ * module and any structure associated to it should be avoided,
+ * as module has been moved into ORCJIT and may be recycled
+ */
+void
 gallivm_compile_module(struct gallivm_state *gallivm);
 
+#if GALLIVM_USE_ORCJIT == 1
+func_pointer
+gallivm_jit_function(struct gallivm_state *gallivm,
+                     const char *func_name);
+#else
 func_pointer
 gallivm_jit_function(struct gallivm_state *gallivm,
                      LLVMValueRef func);
+#endif
 
 unsigned gallivm_get_perf_flags(void);
 

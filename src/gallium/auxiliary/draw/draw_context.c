@@ -77,7 +77,11 @@ draw_create_context(struct pipe_context *pipe, void *context,
 
 #ifdef DRAW_LLVM_AVAILABLE
    if (try_llvm && draw_get_option_use_llvm()) {
+#if GALLIVM_USE_ORCJIT == 1
+      draw->llvm = draw_llvm_create(draw, (LLVMOrcThreadSafeContextRef)context);
+#else
       draw->llvm = draw_llvm_create(draw, (LLVMContextRef)context);
+#endif
    }
 #endif
 

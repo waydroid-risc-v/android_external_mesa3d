@@ -137,4 +137,14 @@
 #define DETECT_ARCH_MIPS 0
 #endif
 
+#if defined(__riscv)
+#if __riscv_xlen == 64
+#define PIPE_ARCH_RISCV64
+#elif __riscv_xlen == 32
+#define PIPE_ARCH_RISCV32
+#else
+#error "pipe: unknown target riscv xlen"
+#endif
+#endif
+
 #endif /* UTIL_DETECT_ARCH_H_ */
